@@ -51,16 +51,31 @@ the object. The output on each line looks like this:
 x, y, p
 ```
 
+Compiling it
+---
+
+Compile it like you would with any other CMake-based project:
+
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
+
+
 Running it
 ---
 
 A set of scripts is prepared to run the program, process its output,
 and plot it using `gnuplot`. Install `gnuplot` using
+
 ```bash
 sudo apt-get install gnuplot
 ```
 
 Run the program in its root directory by doing this:
+
 ```bash
 ./scripts/run.sh
 ```
