@@ -80,5 +80,6 @@ Run the program in its root directory by doing this:
 ./scripts/run.sh
 ```
 
-It generated the file `heatmap.pdf` in the project's root
-directory. View it with your favourite PDF viewer.
+It generated the files `heatmap_multivar.pdf` and
+`heatmap_mixture.pdf` in the project's root directory. View it with
+your favourite PDF viewer.
