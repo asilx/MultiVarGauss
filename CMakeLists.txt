@@ -16,13 +16,20 @@ include_directories(
 link_directories(
   )
 
-add_executable(${PROJECT_NAME}-bin
-  src/main.cpp)
+add_executable(multivargauss
+  src/multivargauss.cpp)
+
+add_executable(mixedgaussians
+  src/mixedgaussians.cpp)
 
 file(GLOB_RECURSE LIB_SOURCE "src/mvg/*.cpp")
 add_library(${PROJECT_NAME}
  ${LIB_SOURCE})
 
-target_link_libraries(${PROJECT_NAME}-bin
+target_link_libraries(multivargauss
+  ${PROJECT_NAME}
+  json-c)
+
+target_link_libraries(mixedgaussians
   ${PROJECT_NAME}
   json-c)

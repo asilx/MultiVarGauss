@@ -1,3 +1,3 @@
 #!/bin/bash
 
-./../bin/MultiVarGauss-bin ../data/grasp_positions.json
+./../bin/multivargauss ../data/grasp_positions.json
