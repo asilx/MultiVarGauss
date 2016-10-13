@@ -1,3 +1,4 @@
 #!/bin/bash
 
-gnuplot plot_heatmap.plt
+gnuplot plot_multivar.plt
+gnuplot plot_mixture.plt

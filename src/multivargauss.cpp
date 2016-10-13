@@ -34,17 +34,6 @@ unsigned int nominalValue(unsigned int unRow, std::string strValue) {
 }
 
 
-void addToDataset(mvg::Dataset::Ptr dsDataset, std::vector<float> vecData) {
-  Eigen::VectorXf vxdData(vecData.size());
-  
-  for(unsigned int unI = 0; unI < vecData.size(); ++unI) {
-    vxdData[unI] = vecData[unI];
-  }
-  
-  dsDataset->add(vxdData);
-}
-
-
 int main(int argc, char** argv) {
   int nReturnvalue = EXIT_FAILURE;
   
@@ -85,7 +74,7 @@ int main(int argc, char** argv) {
 	    vecValues.push_back(fValue);
 	  }
 	  
-	  addToDataset(dsData, vecValues);
+	  mvg::MultiVarGauss<float>::addToDataset(dsData, vecValues);
 	}
       }
       

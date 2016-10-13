@@ -1,5 +1,5 @@
 bin
 build
 lib
-data/data.csv
+data/data*.csv
 heatmap.pdf

@@ -20,6 +20,11 @@ namespace mvg {
     typedef std::shared_ptr<MultiVarGauss> Ptr;
     typedef std::function<float(std::vector<T>)> DensityFunction;
     
+    typedef struct {
+      std::vector<T> vecMin;
+      std::vector<T> vecMax;
+    } Rect;
+    
   private:
     typename Dataset::Ptr m_dsData;
     
@@ -56,6 +61,26 @@ namespace mvg {
     
     void setDataset(typename Dataset::Ptr dsData) {
       m_dsData = dsData;
+    }
+    
+    static void addToDataset(mvg::Dataset::Ptr dsDataset, std::vector<float> vecData) {
+      Eigen::VectorXf vxdData(vecData.size());
+      
+      for(unsigned int unI = 0; unI < vecData.size(); ++unI) {
+	vxdData[unI] = vecData[unI];
+      }
+      
+      dsDataset->add(vxdData);
+    }
+    
+    void setDataset(std::vector<std::vector<T>> vecData) {
+      Dataset::Ptr dsSet = Dataset::create();
+      
+      for(std::vector<T> vecRow : vecData) {
+	this->addToDataset(dsSet, vecRow);
+      }
+      
+      this->setDataset(dsSet);
     }
     
     Eigen::MatrixXf covariance() {
@@ -99,6 +124,34 @@ namespace mvg {
 	
 	return fCoefficient * fExp;
       };
+    }
+    
+    Rect boundingBox() {
+      Rect rctBB;
+      
+      if(m_dsData && m_dsData->count() > 0) {
+	unsigned int unSize = this->dataDimension();
+	
+	rctBB.vecMin.resize(unSize);
+	rctBB.vecMax.resize(unSize);
+	
+	for(unsigned int unI = 0; unI < unSize; ++unI) {
+	  rctBB.vecMin[unI] = (*m_dsData)[0][unI];
+	  rctBB.vecMax[unI] = (*m_dsData)[0][unI];
+	}
+	
+	for(unsigned int unD = 1; unD < m_dsData->count(); ++unD) {
+	  for(unsigned int unI = 0; unI < unSize; ++unI) {
+	    if((*m_dsData)[unD][unI] < rctBB.vecMin[unI]) {
+	      rctBB.vecMin[unI] = (*m_dsData)[unD][unI];
+	    } else if((*m_dsData)[unD][unI] > rctBB.vecMax[unI]) {
+	      rctBB.vecMax[unI] = (*m_dsData)[unD][unI];
+	    }
+	  }
+	}
+      }
+      
+      return rctBB;
     }
     
     template<class ... Args>

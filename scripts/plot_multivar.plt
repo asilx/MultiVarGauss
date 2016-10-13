@@ -1,5 +1,5 @@
 set terminal pdf
-set output "../heatmap.pdf"
+set output "../heatmap_multivar.pdf"
 
 set datafile separator ","
 
@@ -16,4 +16,4 @@ set title "Multivarite Gaussian Distribution Heatmap"
 
 set palette defined (0 "blue", 17 "#00ffff", 33 "white", 50 "yellow", 66 "red", 100 "#990000", 101 "grey")
 
-plot "../data/data.csv" using 1:2:3 w image
+plot "../data/data_multivar.csv" using 1:2:3 w image

@@ -32,7 +32,7 @@ namespace mvg {
       m_vecGaussians.push_back({mvgGaussian, dWeight, mvgGaussian->densityFunction()});
     }
     
-    float sample(std::vector<T> vecValues) {
+    T sample(std::vector<T> vecValues) {
       double dWeightSum = 0.0;
       for(Gaussian& gsGaussian : m_vecGaussians) {
 	dWeightSum += gsGaussian.dWeight;
@@ -41,17 +41,19 @@ namespace mvg {
       // Generate a uniformly distributed random variable to choose
       // the distribution to sample from, based on the distributions'
       // weights.
-      double dRandom = ((double)rand() / (double)RAND_MAX) * dWeightSum;
+      //double dRandom = ((double)rand() / (double)RAND_MAX) * dWeightSum;
       
+      T tSample = T();
       for(Gaussian& gsGaussian : m_vecGaussians) {
-	if(dRandom > gsGaussian.dWeight) {
-	  dRandom -= gsGaussian.dWeight;
-	} else {
-	  return gsGaussian.fncDensity(vecValues);
-	}
+	tSample += gsGaussian.dWeight * gsGaussian.fncDensity(vecValues);
+	// if(dRandom > gsGaussian.dWeight) {
+	//   dRandom -= gsGaussian.dWeight;
+	// } else {
+	//   return gsGaussian.fncDensity(vecValues);
+	// }
       }
       
-      return 0.0;
+      return tSample;
     }
     
     void recalculateDensityFunctions() {
@@ -61,12 +63,38 @@ namespace mvg {
       // instead of calling `densityFunction()` each time we want to
       // sample from the distribution.
       for(Gaussian& gsGaussian : m_vecGaussians) {
-	gsGaussian.fncDensity = gsGaussian.mvgGaussian.densityFunction();
+	gsGaussian.fncDensity = gsGaussian.mvgGaussian->densityFunction();
       }
     }
     
+    typename MultiVarGauss<T>::Rect boundingBox() {
+      typename MultiVarGauss<T>::Rect rctBB;
+      
+      if(m_vecGaussians.size() > 0) {
+	rctBB = m_vecGaussians[0].mvgGaussian->boundingBox();
+	
+	for(Gaussian& gsGaussian : m_vecGaussians) {
+	  typename MultiVarGauss<T>::Rect rctCurrent = gsGaussian.mvgGaussian->boundingBox();
+	  
+	  for(unsigned int unI = 0; unI < rctCurrent.vecMin.size(); ++unI) {
+	    if(rctCurrent.vecMin[unI] < rctBB.vecMin[unI]) {
+	      rctBB.vecMin[unI] = rctCurrent.vecMin[unI];
+	    }
+	    
+	    if(rctCurrent.vecMax[unI] > rctBB.vecMax[unI]) {
+	      rctBB.vecMax[unI] = rctCurrent.vecMax[unI];
+	    }
+	  }
+	}
+      }
+      
+      return rctBB;
+    }
+    
     typename MultiVarGauss<T>::DensityFunction densityFunction() {
-      return [this](std::vector<T>& vecValues) -> float {
+      this->recalculateDensityFunctions();
+      
+      return [this](std::vector<T> vecValues) -> T {
 	return this->sample(vecValues);
       };
     }
