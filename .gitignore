@@ -2,4 +2,4 @@ bin
 build
 lib
 data/data*.csv
-heatmap.pdf
+heatmap*.pdf
