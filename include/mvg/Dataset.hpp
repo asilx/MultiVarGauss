@@ -6,6 +6,8 @@
 #include <iostream>
 #include <vector>
 
+#include <Eigen/Dense>
+
 
 namespace mvg {
   class Dataset {
@@ -21,6 +23,14 @@ namespace mvg {
     }
     
     ~Dataset() {
+    }
+    
+    unsigned int dimension() {
+      if(m_vecData.size() > 0) {
+	return m_vecData[0].size();
+      }
+      
+      return 0;
     }
     
     void add(Eigen::VectorXf vxData) {

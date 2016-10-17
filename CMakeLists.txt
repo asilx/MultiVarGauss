@@ -22,6 +22,9 @@ add_executable(multivargauss
 add_executable(mixedgaussians
   src/mixedgaussians.cpp)
 
+add_executable(cluster_analysis
+  src/cluster_analysis.cpp)
+
 file(GLOB_RECURSE LIB_SOURCE "src/mvg/*.cpp")
 add_library(${PROJECT_NAME}
  ${LIB_SOURCE})
@@ -32,4 +35,9 @@ target_link_libraries(multivargauss
 
 target_link_libraries(mixedgaussians
   ${PROJECT_NAME}
+  json-c)
+
+target_link_libraries(cluster_analysis
+  ${PROJECT_NAME}
+  mpikmeans
   json-c)
