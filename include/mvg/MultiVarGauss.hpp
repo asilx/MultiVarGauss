@@ -38,7 +38,7 @@ namespace mvg {
     
     unsigned int dataDimension() {
       if(m_dsData) {
-	m_dsData->dimension();
+	return m_dsData->dimension();
       }
       
       return 0;

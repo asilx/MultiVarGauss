@@ -19,19 +19,29 @@ namespace mvg {
     double dLowestAverageSilhouetteValue = -1;
     
     for(unsigned int unClusters = unMinClusters; unClusters <= unMaxClusters; ++unClusters) {
-      if(unClusters < unDimension - 1 || unClusters > unDimension + 1) {
-	double dAverageSilhouetteValue = this->silhouetteAverage(unClusters);
-	
-	if(dLowestAverageSilhouetteValue == -1 || dAverageSilhouetteValue > dLowestAverageSilhouetteValue) {
-	  unBestClusterCount = unClusters;
-	  dLowestAverageSilhouetteValue = dAverageSilhouetteValue;
-	}
+      double dAverageSilhouetteValue = this->silhouetteAverage(unClusters);
+      
+      if(dLowestAverageSilhouetteValue == -1 || dAverageSilhouetteValue > dLowestAverageSilhouetteValue) {
+	unBestClusterCount = unClusters;
+	dLowestAverageSilhouetteValue = dAverageSilhouetteValue;
       }
     }
     
     this->calculate(unBestClusterCount);
     
-    return (dLowestAverageSilhouetteValue > -1);
+    // Throw out any outliers
+    unsigned int unMinSamples = m_dsSource->count() / (2.5 * unBestClusterCount);
+    std::vector<Dataset::Ptr> vecFilteredClusters;
+    
+    for(Dataset::Ptr dsCluster : m_vecClusters) {
+      if(dsCluster->count() >= unMinSamples) {
+	vecFilteredClusters.push_back(dsCluster);
+      }
+    }
+    
+    m_vecClusters = vecFilteredClusters;
+    
+    return m_vecClusters.size() > 0 && (dLowestAverageSilhouetteValue > -1);
   }
   
   bool KMeans::calculate(unsigned int unClusters) {
@@ -40,34 +50,146 @@ namespace mvg {
       
       if(unDimensions > 0) {
 	unsigned int unSamples = m_dsSource->count();
-	double arrdElements[unDimensions * unSamples];
 	
-	for(unsigned int unSample = 0; unSample < unSamples; ++unSample) {
-	  for(unsigned int unDimension = 0; unDimension < unDimensions; ++unDimension) {
-	    arrdElements[unSample * unDimensions + unDimension] = (*m_dsSource)[unSample][unDimension];
+	if(unSamples > 0) {
+	  if(unSamples < unClusters) {
+	    // More clusters than samples doesn't make sense
+	    unClusters = unSamples;
 	  }
+	  
+	  srand(time(NULL));
+	  
+	  std::vector<Eigen::VectorXf> vecCentroids;
+	  
+	  // Initialize random centroids
+	  std::vector<unsigned int> vecSampleIndices;
+	  while(vecSampleIndices.size() < unClusters) {
+	    unsigned int unSampleIndex = (rand() % unSamples);
+	    
+	    if(std::find(vecSampleIndices.begin(), vecSampleIndices.end(), unSampleIndex) == vecSampleIndices.end()) {
+	      vecSampleIndices.push_back(unSampleIndex);
+	    }
+	  }
+	  
+	  for(unsigned int unSampleIndex : vecSampleIndices) {
+	    vecCentroids.push_back((*m_dsSource)[unSampleIndex]);
+	  }
+	  
+	  unsigned int unIterations = 0;
+	  unsigned int unMaxIterations = 10000;
+	  std::vector<Eigen::VectorXf> vecOldCentroids;
+	  
+	  std::map<unsigned int, unsigned int> mapAssignments;
+	  
+	  bool bFirstRun = true;
+	  bool bGoon = true;
+	  while(bGoon) {
+	    if(!bFirstRun) {
+	      if(unIterations <= unMaxIterations) {
+		bool bAllEqual = true;
+		
+		for(unsigned int unCentroid = 0; unCentroid < vecCentroids.size(); ++unCentroid) {
+		  double dTolerance = 1e-4;
+		  
+		  if((vecCentroids[unCentroid] - vecOldCentroids[unCentroid]).norm() > dTolerance) {
+		    bAllEqual = false;
+		    break;
+		  }
+		}
+		
+		bGoon = !bAllEqual;
+	      } else {
+		bGoon = false;
+	      }
+	    } else {
+	      bFirstRun = false;
+	    }
+	    
+	    if(bGoon) {
+	      vecOldCentroids = vecCentroids;
+	      unIterations++;
+	      
+	      // "Assign labels"
+	      for(unsigned int unSample = 0; unSample < unSamples; ++unSample) {
+		unsigned int unClosestCentroid = 0;
+		double dSmallestDistance = -1;
+		
+		for(unsigned int unCentroid = 0; unCentroid < vecCentroids.size(); ++unCentroid) {
+		  double dDistance = ((*m_dsSource)[unSample] - vecCentroids[unCentroid]).norm();
+		  
+		  if(dSmallestDistance == -1 || dDistance < dSmallestDistance) {
+		    unClosestCentroid = unCentroid;
+		    dSmallestDistance = dDistance;
+		  }
+		}
+		
+		mapAssignments[unSample] = unClosestCentroid;
+	      }
+	      
+	      // Check if all clusters have samples
+	      bool bClustersGood = true;
+	      for(unsigned int unCentroid = 0; unCentroid < vecCentroids.size(); ++unCentroid) {
+		bool bFound = false;
+		
+		for(std::pair<unsigned int, unsigned int> prAssignment : mapAssignments) {
+		  if(prAssignment.second == unCentroid) {
+		    bFound = true;
+		    break;
+		  }
+		}
+		
+		if(!bFound) {
+		  bClustersGood = false;
+		  break;
+		}
+	      }
+	      
+	      if(!bClustersGood) {
+		// Randomly re-initialize
+		vecCentroids.clear();
+		
+		std::vector<unsigned int> vecSampleIndices;
+		while(vecSampleIndices.size() < unClusters) {
+		  unsigned int unSampleIndex = (rand() % unSamples);
+		  
+		  if(std::find(vecSampleIndices.begin(), vecSampleIndices.end(), unSampleIndex) == vecSampleIndices.end()) {
+		    vecSampleIndices.push_back(unSampleIndex);
+		  }
+		}
+		
+		for(unsigned int unSampleIndex : vecSampleIndices) {
+		  vecCentroids.push_back((*m_dsSource)[unSampleIndex]);
+		}
+	      } else {
+		// Move means
+		for(unsigned int unCentroid = 0; unCentroid < vecCentroids.size(); ++unCentroid) {
+		  Eigen::VectorXf evcMean = Eigen::VectorXf::Zero(unDimensions);
+		  unsigned int unCount = 0;
+		  
+		  for(std::pair<unsigned int, unsigned int> prAssignment : mapAssignments) {
+		    if(prAssignment.second == unCentroid) {
+		      evcMean += (*m_dsSource)[prAssignment.first];
+		      unCount++;
+		    }
+		  }
+		  
+		  vecCentroids[unCentroid] = evcMean / unCount;
+		}
+	      }
+	    }
+	  }
+	  
+	  m_vecClusters.clear();
+	  for(unsigned int unI = 0; unI < unClusters; unI++) {
+	    m_vecClusters.push_back(Dataset::create());
+	  }
+	  
+	  for(std::pair<unsigned int, unsigned int> prAssignment : mapAssignments) {
+	    m_vecClusters[prAssignment.second]->add((*m_dsSource)[prAssignment.first]);
+	  }
+	  
+	  return true;
 	}
-	
-	double arrdClusters[unClusters * unDimensions];
-	memset(arrdClusters, sizeof(double) * unDimensions * unSamples, 0);
-	
-	unsigned int arrunAssignment[unSamples];
-	
-	unsigned int unMaxIter = 100;
-	unsigned int unMaxRestart = 10;
-	
-	double dSumSquaredError = kmeans(arrdClusters, arrdElements, arrunAssignment, unDimensions, unSamples, unClusters, unMaxIter, unMaxRestart);
-	
-	m_vecClusters.clear();
-	for(unsigned int unI = 0; unI < unClusters; ++unI) {
-	  m_vecClusters.push_back(Dataset::create());
-	}
-	
-	for(unsigned int unI = 0; unI < unSamples; ++unI) {
-	  m_vecClusters[arrunAssignment[unI]]->add((*m_dsSource)[unI]);
-	}
-	
-	return true;
       }
     }
     

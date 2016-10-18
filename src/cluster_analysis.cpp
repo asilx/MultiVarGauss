@@ -5,12 +5,30 @@
 #include <fstream>
 
 #include <mvg/KMeans.h>
+#include <mvg/MixedGaussians.hpp>
 
 
 bool fileExists(std::string strFilepath) {
   std::ifstream ifFile(strFilepath, std::ios::in);
   
   return ifFile.good();
+}
+
+
+std::string makeOutputFilename(std::string strFileIn) {
+  size_t szSlash = strFileIn.find_last_of("/");
+  if(szSlash == std::string::npos) {
+    szSlash = -1;
+  }
+  
+  size_t szDot = strFileIn.find_first_of(".", szSlash);
+  if(szDot == std::string::npos) {
+    szDot = strFileIn.length();
+  }
+  
+  szSlash++;
+  
+  return strFileIn.substr(szSlash, szDot - szSlash) + ".out" + strFileIn.substr(szDot);
 }
 
 
@@ -65,48 +83,88 @@ int main(int argc, char** argv) {
   int nReturnvalue = EXIT_FAILURE;
   
   if(argc > 1) {
-    std::string strFile = argv[1];
+    std::string strFileIn = argv[1];
+    std::string strFileOut;
     
-    if(fileExists(strFile)) {
-      std::cout << "Cluster Analysis: '" << strFile << "'" << std::endl;
+    if(argc > 2) {
+      strFileOut = argv[2];
+    } else {
+      strFileOut = makeOutputFilename(strFileIn);
+    }
+    
+    if(fileExists(strFileIn)) {
+      std::cout << "Cluster Analysis: '" << strFileIn << "' --> '" << strFileOut << "'" << std::endl;
       
       mvg::KMeans kmMeans;
-      mvg::Dataset::Ptr dsData = loadCSV(strFile, {0, 1, 2, 3});
+      mvg::Dataset::Ptr dsData = loadCSV(strFileIn, {0, 1, 3});
+      std::cout << "Dataset: " << dsData->count() << " samples with " << dsData->dimension() << " dimension" << (dsData->dimension() == 1 ? "" : "s") << std::endl;
       
       if(dsData) {
 	kmMeans.setSource(dsData);
+	std::cout << "Calculating KMeans clusters .. " << std::flush;
 	
-	if(kmMeans.calculate(1, 4)) {
+	if(kmMeans.calculate(1, 5)) {
+	  std::cout << "done" << std::endl;
+	  
 	  std::vector<mvg::Dataset::Ptr> vecClusters = kmMeans.clusters();
-	  std::vector<std::vector<double>> vecSilhouettes = kmMeans.silhouettes();
+	  std::cout << "Optimal cluster count: " << vecClusters.size() << std::endl;
 	  
-	  std::cout << "Optimal cluster count: " << vecSilhouettes.size() << std::endl;
-	  
-	  for(unsigned int unCluster = 0; unCluster < vecClusters.size(); ++unCluster) {
-	    std::cout << std::endl << "Cluster #" << unCluster << ":" << std::flush << std::endl;
-	    
-	    for(unsigned int unI = 0; unI < vecClusters[unCluster]->count(); ++unI) {
-	      for(unsigned int unD = 0; unD < (*vecClusters[unCluster])[unI].size(); ++unD) {
-		std::cout << "\t" << std::setprecision(3) << (*vecClusters[unCluster])[unI][unD];
-	      }
-	      
-	      std::cout << std::endl;
-	    }
-	    
-	    // std::cout << "Silhouette #" << unCluster << ":" << std::endl;
-	    // for(double dSilhouetteValue : vecSilhouettes[unCluster]) {
-	    //   std::cout << "\t" << dSilhouetteValue << std::endl;
-	    // }
+	  unsigned int unSumSamplesUsed = 0;
+	  for(unsigned int unI = 0; unI < vecClusters.size(); ++unI) {
+	    std::cout << " * Cluster #" << unI << ": " << vecClusters[unI]->count() << " sample" << (vecClusters[unI]->count() == 1 ? "" : "s") << std::endl;
+	    unSumSamplesUsed += vecClusters[unI]->count();
 	  }
 	  
+	  unsigned int unRemovedOutliers = dsData->count() - unSumSamplesUsed;
+	  if(unRemovedOutliers > 0) {
+	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << std::endl;
+	  }
+	  
+	  mvg::MixedGaussians<double> mgGaussians;
+	  
+	  for(mvg::Dataset::Ptr dsCluster : vecClusters) {
+	    mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+	    mvgGaussian->setDataset(dsCluster);
+	    
+	    mgGaussians.addGaussian(mvgGaussian, 1.0);
+	    //break;
+	  }
+	  
+	  mvg::MultiVarGauss<double>::Rect rctBB = mgGaussians.boundingBox();
+	  mvg::MultiVarGauss<double>::DensityFunction fncDensity = mgGaussians.densityFunction();
+	  
+	  std::cout << "Clusters bounding box: [" << rctBB.vecMin[0] << ", " << rctBB.vecMin[1] << "] --> [" << rctBB.vecMax[0] << ", " << rctBB.vecMax[1] << "]" << std::endl;
+	  
+	  // Two dimensional case
+	  float fStepSizeX = 0.01;
+	  float fStepSizeY = 0.01;
+	  
+	  std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::flush;
+	  
+	  std::ofstream ofFile(strFileOut, std::ios::out);
+	  
+	  for(float fX = rctBB.vecMin[0]; fX < rctBB.vecMax[0]; fX += fStepSizeX) {
+	    for(float fY = rctBB.vecMin[1]; fY < rctBB.vecMax[1]; fY += fStepSizeY) {
+	      float fValue = fncDensity({fX, fY, -100});
+	      
+	      ofFile << fX << ", " << fY << ", " << fValue << std::endl;
+	    }
+	  }
+	  
+	  ofFile.close();
+	  
+	  std::cout << "done" << std::endl;
+	  
 	  nReturnvalue = EXIT_SUCCESS;
+	} else {
+	  std::cout << "failed" << std::endl;
 	}
       }
     } else {
-      std::cerr << "Error: File not found ('" << strFile << "')" << std::endl;
+      std::cerr << "Error: File not found ('" << strFileIn << "')" << std::endl;
     }
   } else {
-    std::cerr << "Usage: " << argv[0] << " <data.csv>" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " <data.csv> [<output.csv>]" << std::endl;
   }
   
   return nReturnvalue;

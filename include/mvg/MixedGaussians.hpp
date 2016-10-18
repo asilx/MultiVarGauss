@@ -38,19 +38,10 @@ namespace mvg {
 	dWeightSum += gsGaussian.dWeight;
       }
       
-      // Generate a uniformly distributed random variable to choose
-      // the distribution to sample from, based on the distributions'
-      // weights.
-      //double dRandom = ((double)rand() / (double)RAND_MAX) * dWeightSum;
-      
       T tSample = T();
+      
       for(Gaussian& gsGaussian : m_vecGaussians) {
 	tSample += gsGaussian.dWeight * gsGaussian.fncDensity(vecValues);
-	// if(dRandom > gsGaussian.dWeight) {
-	//   dRandom -= gsGaussian.dWeight;
-	// } else {
-	//   return gsGaussian.fncDensity(vecValues);
-	// }
       }
       
       return tSample;
@@ -86,6 +77,11 @@ namespace mvg {
 	    }
 	  }
 	}
+	
+	rctBB.vecMin[0] -= 1;
+	rctBB.vecMin[1] -= 1;
+	rctBB.vecMax[0] += 1;
+	rctBB.vecMax[1] += 1;
       }
       
       return rctBB;

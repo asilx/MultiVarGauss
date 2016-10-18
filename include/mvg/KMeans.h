@@ -6,10 +6,12 @@
 #include <iostream>
 #include <string>
 #include <fstream>
-
-#include <mpi_kmeans.h>
+#include <map>
 
 #include <mvg/Dataset.hpp>
+
+
+extern "C" int* k_means(double**, int, int, int, double, double**);
 
 
 namespace mvg {
