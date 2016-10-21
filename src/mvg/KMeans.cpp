@@ -61,22 +61,14 @@ namespace mvg {
 	  
 	  std::vector<Eigen::VectorXf> vecCentroids;
 	  
-	  // Initialize random centroids
+	  // Initialize centroids (first entries in the sample list)
 	  std::vector<unsigned int> vecSampleIndices;
-	  while(vecSampleIndices.size() < unClusters) {
-	    unsigned int unSampleIndex = (rand() % unSamples);
-	    
-	    if(std::find(vecSampleIndices.begin(), vecSampleIndices.end(), unSampleIndex) == vecSampleIndices.end()) {
-	      vecSampleIndices.push_back(unSampleIndex);
-	    }
-	  }
-	  
-	  for(unsigned int unSampleIndex : vecSampleIndices) {
-	    vecCentroids.push_back((*m_dsSource)[unSampleIndex]);
+	  while(vecCentroids.size() < unClusters) {
+	    vecCentroids.push_back((*m_dsSource)[vecCentroids.size()]);
 	  }
 	  
 	  unsigned int unIterations = 0;
-	  unsigned int unMaxIterations = 10000;
+	  unsigned int unMaxIterations = 1000;
 	  std::vector<Eigen::VectorXf> vecOldCentroids;
 	  
 	  std::map<unsigned int, unsigned int> mapAssignments;
