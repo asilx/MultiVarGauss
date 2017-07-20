@@ -1,8 +1,16 @@
+#include <org_knowrob_gaussian_MixedGaussianInterface.h>
 #include <iostream>
-#include <iomanip>
 #include <cstdlib>
-#include <string>
 #include <fstream>
+#include <map>
+
+#include <Eigen/Dense>
+#include <mvg/JSON.h>
+#include <mvg/MixedGaussians.hpp>
+#include <mvg/MultiVarGauss.hpp>
+
+#include <iomanip>
+#include <string>
 
 #include <mvg/KMeans.h>
 #include <mvg/MixedGaussians.hpp>
@@ -79,18 +87,35 @@ mvg::Dataset::Ptr loadCSV(std::string strFilepath, std::vector<unsigned int> vec
 }
 
 
-int main(int argc, char** argv) {
-  int nReturnvalue = EXIT_FAILURE;
-  
-  if(argc > 1) {
-    std::string strFileIn = argv[1];
-    std::string strFileOut;
-    
-    if(argc > 2) {
-      strFileOut = argv[2];
-    } else {
-      strFileOut = makeOutputFilename(strFileIn);
-    }
+JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_createMultiVarGaussians(JNIEnv* env, jobject obj, jstring inputJava, jstring outputJava)
+{
+   const char *inputString = env->GetStringUTFChars(inputJava, 0);
+   const char *outputString = env->GetStringUTFChars(outputJava, 0);
+
+   mvg::MultiVarGaussDriver mvgd;
+   mvgd.runJNIMethod(const_cast<char*>(inputString), const_cast<char*>(outputString));
+
+   env->ReleaseStringUTFChars(inputJava, inputString);
+   env->ReleaseStringUTFChars(outputJava, outputString);
+}
+
+JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_createMixedGaussians(JNIEnv* env, jobject obj, jstring outputJava)
+{
+   const char *nativeString = env->GetStringUTFChars(outputJava, JNI_FALSE);
+
+   mvg::MixedGaussiansDriver::runJNIMethod(const_cast<char*>(nativeString));
+
+   env->ReleaseStringUTFChars(outputJava, nativeString);
+   
+}
+
+JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeCluster(JNIEnv* env, jobject obj, jstring inputJava, jstring outputJava)
+{
+    const char *inputString = env->GetStringUTFChars(inputJava, 0);
+    const char *outputString = env->GetStringUTFChars(outputJava, 0);
+
+    std::string strFileIn = inputString;
+    std::string strFileOut = outputString;
     
     if(fileExists(strFileIn)) {
       std::cout << "Cluster Analysis: '" << strFileIn << "' --> '" << strFileOut << "'" << std::endl;
@@ -155,7 +180,6 @@ int main(int argc, char** argv) {
 	  
 	  std::cout << "done" << std::endl;
 	  
-	  nReturnvalue = EXIT_SUCCESS;
 	} else {
 	  std::cout << "failed" << std::endl;
 	}
@@ -163,9 +187,6 @@ int main(int argc, char** argv) {
     } else {
       std::cerr << "Error: File not found ('" << strFileIn << "')" << std::endl;
     }
-  } else {
-    std::cerr << "Usage: " << argv[0] << " <data.csv> [<output.csv>]" << std::endl;
-  }
-  
-  return nReturnvalue;
+    env->ReleaseStringUTFChars(inputJava, inputString);
+    env->ReleaseStringUTFChars(outputJava, outputString);
 }

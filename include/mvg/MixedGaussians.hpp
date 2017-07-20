@@ -25,9 +25,9 @@ namespace mvg {
     
   protected:
   public:
-    MixedGaussians() {}
-    ~MixedGaussians() {}
-    
+    MixedGaussians() {};
+    ~MixedGaussians() {};
+
     void addGaussian(typename MultiVarGauss<T>::Ptr mvgGaussian, double dWeight) {
       m_vecGaussians.push_back({mvgGaussian, dWeight, mvgGaussian->densityFunction()});
     }
@@ -100,6 +100,14 @@ namespace mvg {
       return std::make_shared<MixedGaussians<T>>(std::forward<Args>(args)...);
     }
   };
+
+  class MixedGaussiansDriver{
+    public:    
+      static int runMainMethod();
+      static int runJNIMethod(char* fileName);
+    private:
+      static mvg::MixedGaussians<float> createMixedGaussians();
+  };   
 }
 
 

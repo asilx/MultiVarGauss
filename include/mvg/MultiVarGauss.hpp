@@ -157,6 +157,16 @@ namespace mvg {
       return std::make_shared<MultiVarGauss>(std::forward<Args>(args)...);
     }
   };
+
+  class MultiVarGaussDriver{
+  public:    
+    int runMainMethod(char* inputName);
+    int runJNIMethod(char* inputName, char* fileName);
+  private:
+    mvg::MultiVarGauss<float> createMultiVarGauss(char* inputName);
+    std::map<unsigned int, std::map<std::string, unsigned int>> mapNominalValues;
+    unsigned int nominalValue(unsigned int unRow, std::string strValue); 
+  };  
 }
 
 

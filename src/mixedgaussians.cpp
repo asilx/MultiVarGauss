@@ -8,9 +8,78 @@
 #include <mvg/MixedGaussians.hpp>
 #include <mvg/JSON.h>
 
+/*int main(int argc, char** argv) {
+  return mvg::MixedGaussiansDriver::runMainMethod();  
+}*/
 
-int main(int argc, char** argv) {
+int mvg::MixedGaussiansDriver::runJNIMethod(char* fileName)
+{
   int nReturnvalue = EXIT_SUCCESS;
+
+  std::ofstream outputFile;
+  outputFile.open(fileName);
+
+  mvg::MixedGaussians<float> mgGaussians = mvg::MixedGaussiansDriver::createMixedGaussians();
+  
+  mvg::MultiVarGauss<float>::Rect rctBoundingBox = mgGaussians.boundingBox();
+  mvg::MultiVarGauss<float>::DensityFunction fncDensity = mgGaussians.densityFunction();
+  
+  float fStepSizeX = 0.01;
+  float fStepSizeY = 0.01;
+  
+  for(float fX = rctBoundingBox.vecMin[0]; fX < rctBoundingBox.vecMax[0]; fX += fStepSizeX) {
+    for(float fY = rctBoundingBox.vecMin[1]; fY < rctBoundingBox.vecMax[1]; fY += fStepSizeY) {
+      float fValue = fncDensity({fX, fY});
+      
+      outputFile << fX << ", " << fY << ", " << fValue << std::endl;
+    }
+  }
+ 
+  outputFile.close();  
+
+  return nReturnvalue;
+
+}
+
+
+int mvg::MixedGaussiansDriver::runMainMethod()
+{
+  int nReturnvalue = EXIT_SUCCESS;
+
+  mvg::MixedGaussians<float> mgGaussians = mvg::MixedGaussiansDriver::createMixedGaussians();
+
+  mvg::MultiVarGauss<float>::Rect rctBoundingBox = mgGaussians.boundingBox();
+  mvg::MultiVarGauss<float>::DensityFunction fncDensity = mgGaussians.densityFunction();
+  
+  // Two dimensional case
+  float fStepSizeX = 0.01;
+  float fStepSizeY = 0.01;
+  
+  for(float fX = rctBoundingBox.vecMin[0]; fX < rctBoundingBox.vecMax[0]; fX += fStepSizeX) {
+    for(float fY = rctBoundingBox.vecMin[1]; fY < rctBoundingBox.vecMax[1]; fY += fStepSizeY) {
+      float fValue = fncDensity({fX, fY});
+      
+      std::cout << fX << ", " << fY << ", " << fValue << std::endl;
+    }
+  }
+  
+  /*std::cout << "Min :";
+  for(float fValue : rctBoundingBox.vecMin) {
+    std::cout << "  " << fValue;
+  }
+  std::cout << std::endl;
+  
+  std::cout << "Max :";
+  for(float fValue : rctBoundingBox.vecMax) {
+    std::cout << "  " << fValue;
+  }
+  std::cout << std::endl;*/
+  
+  return nReturnvalue;
+}
+
+mvg::MixedGaussians<float> mvg::MixedGaussiansDriver::createMixedGaussians()
+{
   
   // TODO: Needs implementation. Some functionality from
   // multivargauss.cpp must go into the MultiVarGauss class first,
@@ -43,32 +112,5 @@ int main(int argc, char** argv) {
     }
   }
   
-  mvg::MultiVarGauss<float>::Rect rctBoundingBox = mgGaussians.boundingBox();
-  mvg::MultiVarGauss<float>::DensityFunction fncDensity = mgGaussians.densityFunction();
-  
-  // Two dimensional case
-  float fStepSizeX = 0.01;
-  float fStepSizeY = 0.01;
-  
-  for(float fX = rctBoundingBox.vecMin[0]; fX < rctBoundingBox.vecMax[0]; fX += fStepSizeX) {
-    for(float fY = rctBoundingBox.vecMin[1]; fY < rctBoundingBox.vecMax[1]; fY += fStepSizeY) {
-      float fValue = fncDensity({fX, fY});
-      
-      std::cout << fX << ", " << fY << ", " << fValue << std::endl;
-    }
-  }
-  
-  /*std::cout << "Min :";
-  for(float fValue : rctBoundingBox.vecMin) {
-    std::cout << "  " << fValue;
-  }
-  std::cout << std::endl;
-  
-  std::cout << "Max :";
-  for(float fValue : rctBoundingBox.vecMax) {
-    std::cout << "  " << fValue;
-  }
-  std::cout << std::endl;*/
-  
-  return nReturnvalue;
+  return mgGaussians;
 }
