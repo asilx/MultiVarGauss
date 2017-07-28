@@ -31,6 +31,14 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_createMu
 JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeCluster
   (JNIEnv *, jobject, jstring, jstring);
 
+/*
+ * Class:     org_knowrob_gaussian_MixedGaussianInterface
+ * Method:    analyzeTrials
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/int;Ljava/lang/int;)V
+ */
+JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials
+  (JNIEnv *, jobject, jstring, jstring, jstring, jint, jint);
+
 #ifdef __cplusplus
 }
 #endif

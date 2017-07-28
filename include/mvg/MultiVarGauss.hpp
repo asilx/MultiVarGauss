@@ -53,7 +53,6 @@ namespace mvg {
       }
       
       vxMean /= m_dsData->count();
-      
       return vxMean;
     }
     
@@ -93,7 +92,6 @@ namespace mvg {
       }
       
       mxCov /= m_dsData->count();
-      
       return mxCov;
     }
     

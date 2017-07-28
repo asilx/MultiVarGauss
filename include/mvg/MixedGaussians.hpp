@@ -43,7 +43,7 @@ namespace mvg {
       for(Gaussian& gsGaussian : m_vecGaussians) {
 	tSample += gsGaussian.dWeight * gsGaussian.fncDensity(vecValues);
       }
-      
+
       return tSample;
     }
     

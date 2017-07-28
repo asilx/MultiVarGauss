@@ -121,7 +121,7 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
       std::cout << "Cluster Analysis: '" << strFileIn << "' --> '" << strFileOut << "'" << std::endl;
       
       mvg::KMeans kmMeans;
-      mvg::Dataset::Ptr dsData = loadCSV(strFileIn, {0, 1, 3});
+      mvg::Dataset::Ptr dsData = loadCSV(strFileIn, {0, 1});
       std::cout << "Dataset: " << dsData->count() << " samples with " << dsData->dimension() << " dimension" << (dsData->dimension() == 1 ? "" : "s") << std::endl;
       
       if(dsData) {
@@ -150,13 +150,13 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
 	  for(mvg::Dataset::Ptr dsCluster : vecClusters) {
 	    mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
 	    mvgGaussian->setDataset(dsCluster);
-	    
+	    //mvgGaussian->setDataset(dsData);
 	    mgGaussians.addGaussian(mvgGaussian, 1.0);
 	    //break;
 	  }
 	  
 	  mvg::MultiVarGauss<double>::Rect rctBB = mgGaussians.boundingBox();
-	  mvg::MultiVarGauss<double>::DensityFunction fncDensity = mgGaussians.densityFunction();
+          mvg::MultiVarGauss<double>::DensityFunction fncDensity = mgGaussians.densityFunction();
 	  
 	  std::cout << "Clusters bounding box: [" << rctBB.vecMin[0] << ", " << rctBB.vecMin[1] << "] --> [" << rctBB.vecMax[0] << ", " << rctBB.vecMax[1] << "]" << std::endl;
 	  
@@ -164,14 +164,13 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
 	  float fStepSizeX = 0.01;
 	  float fStepSizeY = 0.01;
 	  
-	  std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::flush;
+	  std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::endl;
 	  
 	  std::ofstream ofFile(strFileOut, std::ios::out);
 	  
 	  for(float fX = rctBB.vecMin[0]; fX < rctBB.vecMax[0]; fX += fStepSizeX) {
 	    for(float fY = rctBB.vecMin[1]; fY < rctBB.vecMax[1]; fY += fStepSizeY) {
-	      float fValue = fncDensity({fX, fY, -100});
-	      
+              float fValue = fncDensity({fX, fY});
 	      ofFile << fX << ", " << fY << ", " << fValue << std::endl;
 	    }
 	  }
@@ -188,5 +187,159 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
       std::cerr << "Error: File not found ('" << strFileIn << "')" << std::endl;
     }
     env->ReleaseStringUTFChars(inputJava, inputString);
+    env->ReleaseStringUTFChars(outputJava, outputString);
+}
+
+JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava, jstring outputJava, jint positiveClusters, jint negativeClusters)
+{
+    const char *inputPosString = env->GetStringUTFChars(inputPosJava, 0);
+    const char *inputNegString = env->GetStringUTFChars(inputNegJava, 0);
+    const char *outputString = env->GetStringUTFChars(outputJava, 0);
+
+    std::string strPosFile = inputPosString;
+    std::string strNegFile = inputNegString;
+    std::string strFileOut = outputString;
+
+    int positiveClusterNumber = (int) positiveClusters;
+    int negativeClusterNumber = (int) negativeClusters;
+    
+    if(fileExists(strPosFile) & fileExists(strNegFile)) {
+      std::cout << "Trial Analysis: '" << strPosFile << "' & '" << strNegFile << "'" << std::endl;
+      
+      mvg::Dataset::Ptr dsDataPos = loadCSV(strPosFile, {0, 1});
+      mvg::KMeans kmMeansPos;
+      std::cout << "Positive Dataset: " << dsDataPos->count() << " samples with " << dsDataPos->dimension() << " dimension" << (dsDataPos->dimension() == 1 ? "" : "s") << std::endl;
+      mvg::Dataset::Ptr dsDataNeg = loadCSV(strNegFile, {0, 1});
+      mvg::KMeans kmMeansNeg;
+      std::cout << "Negative Dataset: " << dsDataNeg->count() << " samples with " << dsDataNeg->dimension() << " dimension" << (dsDataNeg->dimension() == 1 ? "" : "s") << std::endl;
+      
+      if(dsDataPos && dsDataNeg) {
+
+        std::vector<mvg::Dataset::Ptr> vecClustersPos;
+        std::vector<mvg::Dataset::Ptr> vecClustersNeg;
+	if (positiveClusterNumber > 1)
+        {
+          kmMeansPos.setSource(dsDataPos);
+	  std::cout << "Calculating positive kMeans clusters .. " << std::flush;
+          kmMeansPos.calculate(1, positiveClusterNumber);
+
+          std::cout << "done" << std::endl;
+	  
+	  vecClustersPos = kmMeansPos.clusters();
+	  std::cout << "Positive optimal cluster count: " << vecClustersPos.size() << std::endl;
+	  
+	  unsigned int unSumSamplesUsed = 0;
+	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
+	    std::cout << " * Cluster #" << unI << ": " << vecClustersPos[unI]->count() << " sample" << (vecClustersPos[unI]->count() == 1 ? "" : "s") << std::endl;
+	    unSumSamplesUsed += vecClustersPos[unI]->count();
+	  }
+	  
+	  unsigned int unRemovedOutliers = dsDataPos->count() - unSumSamplesUsed;
+	  if(unRemovedOutliers > 0) {
+	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from positive dataset" << std::endl;
+	  }
+	}
+
+        if (negativeClusterNumber > 1)
+        {
+          kmMeansNeg.setSource(dsDataNeg);
+	  std::cout << "Calculating positive kMeans clusters .. " << std::flush;
+          kmMeansNeg.calculate(1, negativeClusterNumber);
+
+          std::cout << "done" << std::endl;
+	  
+	  vecClustersNeg = kmMeansNeg.clusters();
+	  std::cout << "Negative optimal cluster count: " << vecClustersPos.size() << std::endl;
+	  
+	  unsigned int unSumSamplesUsed = 0;
+	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
+	    std::cout << " * Cluster #" << unI << ": " << vecClustersNeg[unI]->count() << " sample" << (vecClustersNeg[unI]->count() == 1 ? "" : "s") << std::endl;
+	    unSumSamplesUsed += vecClustersNeg[unI]->count();
+	  }
+	  
+	  unsigned int unRemovedOutliers = dsDataNeg->count() - unSumSamplesUsed;
+	  if(unRemovedOutliers > 0) {
+	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from negative dataset" << std::endl;
+	  }
+	}
+	
+        mvg::MixedGaussians<double> mgGaussiansPos;
+        mvg::MixedGaussians<double> mgGaussiansNeg;
+
+	if (positiveClusterNumber > 1)
+        {
+          for(mvg::Dataset::Ptr dsCluster : vecClustersPos) {
+            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+            mvgGaussian->setDataset(dsCluster);
+	    mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
+	  }
+        }
+        else
+        {
+          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+          mvgGaussian->setDataset(dsDataPos);
+	  mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
+        }
+
+        if (negativeClusterNumber > 1)
+        {
+          for(mvg::Dataset::Ptr dsCluster : vecClustersNeg) {
+            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+            mvgGaussian->setDataset(dsCluster);
+	    mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
+	  }
+        }
+        else
+        {
+          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+          mvgGaussian->setDataset(dsDataNeg);
+	  mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
+        }
+	  
+	mvg::MultiVarGauss<double>::Rect rctBBPos = mgGaussiansPos.boundingBox();
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityPos = mgGaussiansPos.densityFunction();
+
+        mvg::MultiVarGauss<double>::Rect rctBBNeg = mgGaussiansNeg.boundingBox();
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityNeg = mgGaussiansNeg.densityFunction();
+
+        double min_x, min_y, max_x, max_y;
+
+        if(rctBBPos.vecMin[0] > rctBBNeg.vecMin[0]) min_x = rctBBNeg.vecMin[0]; else min_x = rctBBPos.vecMin[0];
+        if(rctBBPos.vecMin[1] > rctBBNeg.vecMin[1]) min_y = rctBBNeg.vecMin[1]; else min_y = rctBBPos.vecMin[1];
+        if(rctBBPos.vecMax[0] > rctBBNeg.vecMax[0]) max_x = rctBBPos.vecMax[0]; else max_x = rctBBNeg.vecMax[0];
+        if(rctBBPos.vecMax[1] > rctBBNeg.vecMax[1]) max_y = rctBBPos.vecMax[1]; else max_y = rctBBNeg.vecMax[1]; 
+	  
+	std::cout << "Clusters bounding box: [" << min_x << ", " << min_y << "] --> [" << max_x << ", " << max_y << "]" << std::endl;
+	  
+	// Two dimensional case
+	float fStepSizeX = 0.01;
+	float fStepSizeY = 0.01;
+	  
+	std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::endl;
+	  
+	std::ofstream ofFile(strFileOut, std::ios::out);
+	  
+	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
+	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
+            float fValuePos = fncDensityPos({fX, fY});
+            float fValueNeg = fncDensityNeg({fX, fY});
+            float fValue = fValuePos - fValueNeg;
+            if (fValue < 0) fValue = 0;
+            if (fValue > 1) fValue = 1;
+            if (fValue != fValue) fValue = 0;
+            ofFile << fX << ", " << fY << ", " << fValue << std::endl;
+	  }
+	}
+	  
+        ofFile.close();
+	  
+	std::cout << "done" << std::endl;
+	
+      }
+    } else {
+      std::cerr << "Error: Input files not found " << std::endl;
+    }
+    env->ReleaseStringUTFChars(inputPosJava, inputPosString);
+    env->ReleaseStringUTFChars(inputNegJava, inputNegString);
     env->ReleaseStringUTFChars(outputJava, outputString);
 }
