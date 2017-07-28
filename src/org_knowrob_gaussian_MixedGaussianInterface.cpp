@@ -243,13 +243,13 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeT
         if (negativeClusterNumber > 1)
         {
           kmMeansNeg.setSource(dsDataNeg);
-	  std::cout << "Calculating positive kMeans clusters .. " << std::flush;
+	  std::cout << "Calculating negative kMeans clusters .. " << std::flush;
           kmMeansNeg.calculate(1, negativeClusterNumber);
 
           std::cout << "done" << std::endl;
 	  
 	  vecClustersNeg = kmMeansNeg.clusters();
-	  std::cout << "Negative optimal cluster count: " << vecClustersPos.size() << std::endl;
+	  std::cout << "Negative optimal cluster count: " << vecClustersNeg.size() << std::endl;
 	  
 	  unsigned int unSumSamplesUsed = 0;
 	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
@@ -293,7 +293,7 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeT
         {
           mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
           mvgGaussian->setDataset(dsDataNeg);
-	  mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
+	  mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
         }
 	  
 	mvg::MultiVarGauss<double>::Rect rctBBPos = mgGaussiansPos.boundingBox();
