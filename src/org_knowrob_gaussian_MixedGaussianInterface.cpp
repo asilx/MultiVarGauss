@@ -190,7 +190,7 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
     env->ReleaseStringUTFChars(outputJava, outputString);
 }
 
-JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava, jstring outputJava, jint positiveClusters, jint negativeClusters)
+JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava, jstring outputJava, jint positiveClusters, jint negativeClusters)
 {
     const char *inputPosString = env->GetStringUTFChars(inputPosJava, 0);
     const char *inputNegString = env->GetStringUTFChars(inputNegJava, 0);
@@ -318,7 +318,12 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeT
 	std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::endl;
 	  
 	std::ofstream ofFile(strFileOut, std::ios::out);
-	  
+	 
+	jdoubleArray maximized_expectation = env->NewDoubleArray(2);
+	float maxValue = -1;
+	float maxValueIndX = -1;
+	float maxValueIndY = -1;
+	   
 	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
@@ -328,12 +333,25 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeT
             if (fValue > 1) fValue = 1;
             if (fValue != fValue) fValue = 0;
             ofFile << fX << ", " << fY << ", " << fValue << std::endl;
+            if(maxValue < fValue)
+	    {
+               maxValue = fValue;
+	       maxValueIndX = fX;
+               maxValueIndY = fY;
+	    }
 	  }
 	}
-	  
+	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
+	pMax[0] = maxValueIndX;
+        pMax[1] = maxValueIndY;
         ofFile.close();
 	  
 	std::cout << "done" << std::endl;
+	env->ReleaseStringUTFChars(inputPosJava, inputPosString);
+        env->ReleaseStringUTFChars(inputNegJava, inputNegString);
+        env->ReleaseStringUTFChars(outputJava, outputString);
+	      
+	return maximized_expectation;
 	
       }
     } else {
