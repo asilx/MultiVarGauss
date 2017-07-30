@@ -342,8 +342,8 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  }
 	}
 	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
-	pMax[0] = maxValueIndX;
-        pMax[1] = maxValueIndY;
+	pMax[0] = (double) maxValueIndX;
+        pMax[1] = (double) maxValueIndY;
         ofFile.close();
 	  
 	std::cout << "done" << std::endl;
