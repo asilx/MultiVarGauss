@@ -36,7 +36,7 @@ JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeC
  * Method:    analyzeTrials
  * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/int;Ljava/lang/int;)V
  */
-JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials
+JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_analyzeTrials
   (JNIEnv *, jobject, jstring, jstring, jstring, jint, jint);
 
 #ifdef __cplusplus
