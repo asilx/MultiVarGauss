@@ -319,7 +319,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  
 	std::ofstream ofFile(strFileOut, std::ios::out);
 	 
-	jdoubleArray maximized_expectation = env->NewDoubleArray(2);
+	jdoubleArray maximized_expectation = env->NewDoubleArray(16);
 	float maxValue = -1;
 	float maxValueIndX = -1;
 	float maxValueIndY = -1;
@@ -342,15 +342,30 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  }
 	}
 	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
-	pMax[0] = (double) maxValueIndX;
-        pMax[1] = (double) maxValueIndY;
+        pMax[0] = 1.0;
+        pMax[1] = 0.0;
+        pMax[2] = 0.0;
+	pMax[3] = (double) maxValueIndX;
+        pMax[4] = 0.0;
+        pMax[5] = 1.0;
+        pMax[6] = 0.0;
+        pMax[7] = (double) maxValueIndY;
+        pMax[8] = 0.0;
+        pMax[9] = 0.0;
+        pMax[10] = 1.0;
+        pMax[11] = 0.0;
+        pMax[12] = 0.0;
+        pMax[13] = 0.0;
+        pMax[14] = 0.0;
+        pMax[15] = 1.0;
         ofFile.close();
 	  
+        std::cout << maxValueIndX << "-" << maxValueIndY << std::endl;
 	std::cout << "done" << std::endl;
 	env->ReleaseStringUTFChars(inputPosJava, inputPosString);
         env->ReleaseStringUTFChars(inputNegJava, inputNegString);
         env->ReleaseStringUTFChars(outputJava, outputString);
-	env->ReleaseDoubleArrayElements(maximized_expectation, pMax, 2);      
+	env->ReleaseDoubleArrayElements(maximized_expectation, pMax, NULL);      
 	return maximized_expectation;
 	
       }
