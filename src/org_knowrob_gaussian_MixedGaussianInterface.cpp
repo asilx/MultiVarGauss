@@ -350,7 +350,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	env->ReleaseStringUTFChars(inputPosJava, inputPosString);
         env->ReleaseStringUTFChars(inputNegJava, inputNegString);
         env->ReleaseStringUTFChars(outputJava, outputString);
-	      
+	env->ReleaseDoubleArrayElements(maximized_expectation, pMax, 2);      
 	return maximized_expectation;
 	
       }
