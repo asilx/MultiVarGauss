@@ -328,7 +328,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
-            float fValue = fValuePos - fValueNeg;
+            float fValue = fValuePos + (1 - fValueNeg);
             if (fValue < 0) fValue = 0;
             if (fValue > 1) fValue = 1;
             if (fValue != fValue) fValue = 0;
