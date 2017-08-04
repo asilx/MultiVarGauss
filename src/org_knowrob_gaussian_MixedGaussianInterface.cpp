@@ -384,7 +384,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
     env->ReleaseStringUTFChars(outputJava, outputString);
 }
 
-JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava,  jint positiveClusters, jint negativeClusters, jfloat current_x, jfloat current_y)
+JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava,  jint positiveClusters, jint negativeClusters, jfloatArray current_robot_pose)
 {
     const char *inputPosString = env->GetStringUTFChars(inputPosJava, 0);
     const char *inputNegString = env->GetStringUTFChars(inputNegJava, 0);
@@ -519,13 +519,18 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	float maxValueIndX = -1;
 	float maxValueIndY = -1;
         float minDistance = 10000.0;
+        jfloat *current_robot_pose_ptr = env->GetFloatArrayElements(current_robot_pose, NULL);
+        float current_x = current_robot_pose_ptr[3];
+        float current_y = current_robot_pose_ptr[7];
 	   
 	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
             float fValue = 0;
-            if (fValueNeg > 0 && fValueNeg <= 1) fValue = (fValuePos + (1 - fValueNeg))/2;
+            if(fValuePos == 1) fValue = fValuePos;
+            else if(fValueNeg == 1) fValue = 0;
+            else if (fValueNeg > 0 && fValueNeg < 1 && fValueNeg > 0.6) fValue = (fValuePos + (1 - fValueNeg))/2;
             else fValue = fValuePos;
             if (fValue < 0) fValue = 0;
             if (fValue > 1) fValue = 1;
@@ -549,22 +554,23 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  }
 	}
 	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
-        pMax[0] = 1.0;
-        pMax[1] = 0.0;
-        pMax[2] = 0.0;
+        
+        pMax[0] = (double)current_robot_pose_ptr[0];
+        pMax[1] = (double)current_robot_pose_ptr[1];
+        pMax[2] = (double)current_robot_pose_ptr[2];
 	pMax[3] = (double) maxValueIndX;
-        pMax[4] = 0.0;
-        pMax[5] = 1.0;
-        pMax[6] = 0.0;
+        pMax[4] = (double)current_robot_pose_ptr[4];
+        pMax[5] = (double)current_robot_pose_ptr[5];
+        pMax[6] = (double)current_robot_pose_ptr[6];
         pMax[7] = (double) maxValueIndY;
-        pMax[8] = 0.0;
-        pMax[9] = 0.0;
-        pMax[10] = 1.0;
-        pMax[11] = 0.0;
-        pMax[12] = 0.0;
-        pMax[13] = 0.0;
-        pMax[14] = 0.0;
-        pMax[15] = 1.0;
+        pMax[8] = (double)current_robot_pose_ptr[8];
+        pMax[9] = (double)current_robot_pose_ptr[9];
+        pMax[10] = (double)current_robot_pose_ptr[10];
+        pMax[11] = (double)current_robot_pose_ptr[11];
+        pMax[12] = (double)current_robot_pose_ptr[12];
+        pMax[13] = (double)current_robot_pose_ptr[13];
+        pMax[14] = (double)current_robot_pose_ptr[14];
+        pMax[15] = (double)current_robot_pose_ptr[15];
 	  
         std::cout << maxValueIndX << "-" << maxValueIndY << std::endl;
 	std::cout << "done" << std::endl;
