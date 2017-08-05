@@ -384,6 +384,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
     env->ReleaseStringUTFChars(outputJava, outputString);
 }
 
+//first two elements are mean. Last four are covariance
 JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava,  jint positiveClusters, jint negativeClusters, jfloatArray current_robot_pose)
 {
     const char *inputPosString = env->GetStringUTFChars(inputPosJava, 0);
@@ -518,31 +519,33 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	float maxValue = -1;
 	float maxValueIndX = -1;
 	float maxValueIndY = -1;
-        float minDistance = 10000.0;
+        //float minDistance = 10000.0;
         jfloat *current_robot_pose_ptr = env->GetFloatArrayElements(current_robot_pose, NULL);
-        float current_x = current_robot_pose_ptr[3];
-        float current_y = current_robot_pose_ptr[7];
+        float current_x = 0;//current_robot_pose_ptr[3];
+        float current_y = 0;//current_robot_pose_ptr[7];
 	   
 	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
             float fValue = 0;
-            if(fValuePos == 1) fValue = fValuePos;
+            /*if(fValuePos == 1) fValue = fValuePos;
             else if(fValueNeg == 1) fValue = 0;
-            else if (fValueNeg > 0 && fValueNeg < 1 && fValueNeg > 0.6) fValue = (fValuePos + (1 - fValueNeg))/2;
-            else fValue = fValuePos;
+            else if(fValueNeg < 0.5) fValue = fValuePos;
+            else if(fValuePos < 0.5) fValue = 1 - fValueNeg;
+            else*/ fValue = (fValuePos + (1- fValueNeg)) / 2;
+
             if (fValue < 0) fValue = 0;
             if (fValue > 1) fValue = 1;
             if (fValue != fValue) fValue = 0;
             if(maxValue < fValue)
 	    {
                maxValue = fValue;
-	       maxValueIndX = fX;
-               maxValueIndY = fY;
-               minDistance = (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY); 
+	       //maxValueIndX = fX;
+               //maxValueIndY = fY;
+               //minDistance = (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY); 
 	    }
-            else if (maxValue == fValue)
+            /*else if (maxValue == fValue)
             {
                if(minDistance > (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY))
                {
@@ -550,27 +553,48 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
                    maxValueIndX = fX;
                    maxValueIndY = fY;
                }
-            }
+            }*/
 	  }
 	}
+
+        mvg::Dataset::Ptr dsDataMax = mvg::Dataset::create();
+        for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
+	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
+            float fValuePos = fncDensityPos({fX, fY});
+            float fValueNeg = fncDensityNeg({fX, fY});
+            float fValue = 0;
+            /*if(fValuePos == 1) fValue = fValuePos;
+            else if(fValueNeg == 1) fValue = 0;
+            else if(fValueNeg < 0.5) fValue = fValuePos;
+            else if(fValuePos < 0.5) fValue = 1 - fValueNeg;
+            else*/ fValue = (fValuePos + (1- fValueNeg)) / 2;
+
+            if (fValue < 0) fValue = 0;
+            if (fValue > 1) fValue = 1;
+            if (fValue != fValue) fValue = 0;
+
+            if(maxValue == fValue)
+	    {
+               Eigen::VectorXf vxdData(2);
+               vxdData[0] = fX;
+               vxdData[1] = fY;
+               dsDataMax->add(vxdData);
+	    }
+          }
+        }
+        mvg::MultiVarGauss<double>::Ptr mvgGaussianMax = mvg::MultiVarGauss<double>::create();
+        mvgGaussianMax->setDataset(dsDataMax);
+        Eigen::VectorXf meanV = mvgGaussianMax->dataMean();
+        Eigen::MatrixXf cV = mvgGaussianMax->covariance();
+
 	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
         
-        pMax[0] = (double)current_robot_pose_ptr[0];
-        pMax[1] = (double)current_robot_pose_ptr[1];
-        pMax[2] = (double)current_robot_pose_ptr[2];
-	pMax[3] = (double) maxValueIndX;
-        pMax[4] = (double)current_robot_pose_ptr[4];
-        pMax[5] = (double)current_robot_pose_ptr[5];
-        pMax[6] = (double)current_robot_pose_ptr[6];
-        pMax[7] = (double) maxValueIndY;
-        pMax[8] = (double)current_robot_pose_ptr[8];
-        pMax[9] = (double)current_robot_pose_ptr[9];
-        pMax[10] = (double)current_robot_pose_ptr[10];
-        pMax[11] = (double)current_robot_pose_ptr[11];
-        pMax[12] = (double)current_robot_pose_ptr[12];
-        pMax[13] = (double)current_robot_pose_ptr[13];
-        pMax[14] = (double)current_robot_pose_ptr[14];
-        pMax[15] = (double)current_robot_pose_ptr[15];
+        pMax[0] = (double) meanV[0];
+        pMax[1] = (double) meanV[1];
+        pMax[2] = (double) cV(0,0);
+        pMax[3] = (double) cV(0,1);
+        pMax[4] = (double) cV(1,0);
+        pMax[5] = (double) cV(1,1);
 	  
         std::cout << maxValueIndX << "-" << maxValueIndY << std::endl;
 	std::cout << "done" << std::endl;
