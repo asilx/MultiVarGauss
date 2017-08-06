@@ -86,6 +86,81 @@ mvg::Dataset::Ptr loadCSV(std::string strFilepath, std::vector<unsigned int> vec
   return dsData;
 }
 
+void clusterizeDataset (mvg::KMeans& kmean, unsigned int& maxCluster, mvg::Dataset::Ptr dsData, std::vector<mvg::Dataset::Ptr> vecCluster)
+{
+   kmean.setSource(dsData);
+   std::cout << "Calculating kMeans clusters .. " << std::flush;
+   kmean.calculate(1, maxCluster);
+
+   std::cout << "done" << std::endl;
+	  
+   vecCluster = kmean.clusters();
+   std::cout << "Optimal cluster count: " << vecCluster.size() << std::endl;
+	  
+   unsigned int unSumSamplesUsed = 0;
+   for(unsigned int unI = 0; unI < vecCluster.size(); ++unI) {
+      std::cout << " * Cluster #" << unI << ": " << vecCluster[unI]->count() << " sample" << (vecCluster[unI]->count() == 1 ? "" : "s") << std::endl;
+      unSumSamplesUsed += vecCluster[unI]->count();
+   }
+	  
+   unsigned int unRemovedOutliers = dsData->count() - unSumSamplesUsed;
+   if(unRemovedOutliers > 0) {
+      std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from positive dataset" << std::endl;
+   }
+}
+
+void addDataSetsToMixedGaussian (unsigned int& maxCluster, mvg::Dataset::Ptr dsData, std::vector<mvg::Dataset::Ptr> vecCluster, mvg::MixedGaussians<double>& mgGaussians)
+{
+   if (maxCluster > 1)
+   {
+      for(mvg::Dataset::Ptr dsCluster : vecCluster) {
+         mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+         mvgGaussian->setDataset(dsCluster);
+	 mgGaussians.addGaussian(mvgGaussian, 1.0);
+      }
+   }
+   else
+   {
+      mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
+      mvgGaussian->setDataset(dsData);
+      mgGaussians.addGaussian(mvgGaussian, 1.0);
+   }
+}
+
+void calculateClustersandBoundingBoxes(unsigned int& positiveClusterNumber, unsigned int& negativeClusterNumber, mvg::Dataset::Ptr dsDataPos, mvg::Dataset::Ptr dsDataNeg, 
+                                       std::vector<mvg::Dataset::Ptr> vecClustersPos, std::vector<mvg::Dataset::Ptr> vecClustersNeg, mvg::MixedGaussians<double>& mgGaussiansPos, 
+                                       mvg::MixedGaussians<double>& mgGaussiansNeg, double& min_x, double& min_y, double& max_x, double& max_y)
+{
+   mvg::KMeans kmMeansPos;
+   mvg::KMeans kmMeansNeg;
+   if (positiveClusterNumber > 1)
+   {
+      clusterizeDataset (kmMeansPos, positiveClusterNumber, dsDataPos, vecClustersPos);
+   }
+
+   if (negativeClusterNumber > 1)
+   {
+      clusterizeDataset (kmMeansPos, positiveClusterNumber, dsDataPos, vecClustersPos);
+   }
+
+   addDataSetsToMixedGaussian(positiveClusterNumber, dsDataPos, vecClustersPos, mgGaussiansPos);
+   addDataSetsToMixedGaussian(negativeClusterNumber, dsDataNeg, vecClustersPos, mgGaussiansNeg);
+
+   mvg::MultiVarGauss<double>::Rect rctBBPos = mgGaussiansPos.boundingBox();
+   mvg::MultiVarGauss<double>::Rect rctBBNeg = mgGaussiansNeg.boundingBox();
+   /*if(rctBBPos.vecMin[0] > rctBBNeg.vecMin[0]) min_x = rctBBNeg.vecMin[0]; else min_x = rctBBPos.vecMin[0];
+    if(rctBBPos.vecMin[1] > rctBBNeg.vecMin[1]) min_y = rctBBNeg.vecMin[1]; else min_y = rctBBPos.vecMin[1];
+    if(rctBBPos.vecMax[0] > rctBBNeg.vecMax[0]) max_x = rctBBPos.vecMax[0]; else max_x = rctBBNeg.vecMax[0];
+    if(rctBBPos.vecMax[1] > rctBBNeg.vecMax[1]) max_y = rctBBPos.vecMax[1]; else max_y = rctBBNeg.vecMax[1];*/ 
+
+   min_x = rctBBPos.vecMin[0];//positive bb is enough for visualization. It does matter most.
+   max_x = rctBBPos.vecMax[0];
+   min_y = rctBBPos.vecMin[1];
+   max_y = rctBBPos.vecMax[1];
+ 
+   std::cout << "Clusters bounding box: [" << min_x << ", " << min_y << "] --> [" << max_x << ", " << max_y << "]" << std::endl;
+}
+
 
 JNIEXPORT void JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_createMultiVarGaussians(JNIEnv* env, jobject obj, jstring inputJava, jstring outputJava)
 {
@@ -200,123 +275,29 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
     std::string strNegFile = inputNegString;
     std::string strFileOut = outputString;
 
-    int positiveClusterNumber = (int) positiveClusters;
-    int negativeClusterNumber = (int) negativeClusters;
+    unsigned int positiveClusterNumber = (unsigned int) positiveClusters;
+    unsigned int negativeClusterNumber = (unsigned int) negativeClusters;
     
     if(fileExists(strPosFile) & fileExists(strNegFile)) {
       std::cout << "Trial Analysis: '" << strPosFile << "' & '" << strNegFile << "'" << std::endl;
       
       mvg::Dataset::Ptr dsDataPos = loadCSV(strPosFile, {0, 1});
-      mvg::KMeans kmMeansPos;
       std::cout << "Positive Dataset: " << dsDataPos->count() << " samples with " << dsDataPos->dimension() << " dimension" << (dsDataPos->dimension() == 1 ? "" : "s") << std::endl;
       mvg::Dataset::Ptr dsDataNeg = loadCSV(strNegFile, {0, 1});
-      mvg::KMeans kmMeansNeg;
       std::cout << "Negative Dataset: " << dsDataNeg->count() << " samples with " << dsDataNeg->dimension() << " dimension" << (dsDataNeg->dimension() == 1 ? "" : "s") << std::endl;
       
       if(dsDataPos && dsDataNeg) {
 
         std::vector<mvg::Dataset::Ptr> vecClustersPos;
         std::vector<mvg::Dataset::Ptr> vecClustersNeg;
-	if (positiveClusterNumber > 1)
-        {
-          kmMeansPos.setSource(dsDataPos);
-	  std::cout << "Calculating positive kMeans clusters .. " << std::flush;
-          kmMeansPos.calculate(1, positiveClusterNumber);
-
-          std::cout << "done" << std::endl;
-	  
-	  vecClustersPos = kmMeansPos.clusters();
-	  std::cout << "Positive optimal cluster count: " << vecClustersPos.size() << std::endl;
-	  
-	  unsigned int unSumSamplesUsed = 0;
-	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
-	    std::cout << " * Cluster #" << unI << ": " << vecClustersPos[unI]->count() << " sample" << (vecClustersPos[unI]->count() == 1 ? "" : "s") << std::endl;
-	    unSumSamplesUsed += vecClustersPos[unI]->count();
-	  }
-	  
-	  unsigned int unRemovedOutliers = dsDataPos->count() - unSumSamplesUsed;
-	  if(unRemovedOutliers > 0) {
-	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from positive dataset" << std::endl;
-	  }
-	}
-
-        if (negativeClusterNumber > 1)
-        {
-          kmMeansNeg.setSource(dsDataNeg);
-	  std::cout << "Calculating negative kMeans clusters .. " << std::flush;
-          kmMeansNeg.calculate(1, negativeClusterNumber);
-
-          std::cout << "done" << std::endl;
-	  
-	  vecClustersNeg = kmMeansNeg.clusters();
-	  std::cout << "Negative optimal cluster count: " << vecClustersNeg.size() << std::endl;
-	  
-	  unsigned int unSumSamplesUsed = 0;
-	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
-	    std::cout << " * Cluster #" << unI << ": " << vecClustersNeg[unI]->count() << " sample" << (vecClustersNeg[unI]->count() == 1 ? "" : "s") << std::endl;
-	    unSumSamplesUsed += vecClustersNeg[unI]->count();
-	  }
-	  
-	  unsigned int unRemovedOutliers = dsDataNeg->count() - unSumSamplesUsed;
-	  if(unRemovedOutliers > 0) {
-	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from negative dataset" << std::endl;
-	  }
-	}
 	
         mvg::MixedGaussians<double> mgGaussiansPos;
         mvg::MixedGaussians<double> mgGaussiansNeg;
 
-	if (positiveClusterNumber > 1)
-        {
-          for(mvg::Dataset::Ptr dsCluster : vecClustersPos) {
-            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-            mvgGaussian->setDataset(dsCluster);
-	    mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
-	  }
-        }
-        else
-        {
-          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-          mvgGaussian->setDataset(dsDataPos);
-	  mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
-        }
-
-        if (negativeClusterNumber > 1)
-        {
-          for(mvg::Dataset::Ptr dsCluster : vecClustersNeg) {
-            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-            mvgGaussian->setDataset(dsCluster);
-	    mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
-	  }
-        }
-        else
-        {
-          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-          mvgGaussian->setDataset(dsDataNeg);
-	  mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
-        }
-	  
-	mvg::MultiVarGauss<double>::Rect rctBBPos = mgGaussiansPos.boundingBox();
-        mvg::MultiVarGauss<double>::DensityFunction fncDensityPos = mgGaussiansPos.densityFunction();
-
-        mvg::MultiVarGauss<double>::Rect rctBBNeg = mgGaussiansNeg.boundingBox();
-        mvg::MultiVarGauss<double>::DensityFunction fncDensityNeg = mgGaussiansNeg.densityFunction();
-
         double min_x, min_y, max_x, max_y;
+        calculateClustersandBoundingBoxes(positiveClusterNumber, negativeClusterNumber,dsDataPos, dsDataNeg, vecClustersPos, vecClustersNeg, mgGaussiansPos, mgGaussiansNeg, min_x, min_y, max_x, max_y);
 
-        /*if(rctBBPos.vecMin[0] > rctBBNeg.vecMin[0]) min_x = rctBBNeg.vecMin[0]; else min_x = rctBBPos.vecMin[0];
-        if(rctBBPos.vecMin[1] > rctBBNeg.vecMin[1]) min_y = rctBBNeg.vecMin[1]; else min_y = rctBBPos.vecMin[1];
-        if(rctBBPos.vecMax[0] > rctBBNeg.vecMax[0]) max_x = rctBBPos.vecMax[0]; else max_x = rctBBNeg.vecMax[0];
-        if(rctBBPos.vecMax[1] > rctBBNeg.vecMax[1]) max_y = rctBBPos.vecMax[1]; else max_y = rctBBNeg.vecMax[1];*/ 
-
-        min_x = rctBBPos.vecMin[0];
-        max_x = rctBBPos.vecMax[0];
-        min_y = rctBBPos.vecMin[1];
-	max_y = rctBBPos.vecMax[1];
- 
-	std::cout << "Clusters bounding box: [" << min_x << ", " << min_y << "] --> [" << max_x << ", " << max_y << "]" << std::endl;
-	  
-	// Two dimensional case
+        // Two dimensional case
 	float fStepSizeX = 0.01;
 	float fStepSizeY = 0.01;
 	  
@@ -324,21 +305,20 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  
 	std::ofstream ofFile(strFileOut, std::ios::out);
 	 
-	jdoubleArray maximized_expectation = env->NewDoubleArray(16);
+	jdoubleArray maximized_expectation = env->NewDoubleArray(2);
 	float maxValue = -1;
 	float maxValueIndX = -1;
 	float maxValueIndY = -1;
 	   
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityPos = mgGaussiansPos.densityFunction();
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityNeg = mgGaussiansNeg.densityFunction();
 	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
-            float fValue = 0;
-            if (fValueNeg > 0 && fValueNeg <= 1) fValue = (fValuePos + (1 - fValueNeg))/2;
-            else fValue = fValuePos;
-            if (fValue < 0) fValue = 0;
-            if (fValue > 1) fValue = 1;
-            if (fValue != fValue) fValue = 0;
+            float fValue = (fValuePos + (1 - fValueNeg))/2;
+           
+
             ofFile << fX << ", " << fY << ", " << fValue << std::endl;
             if(maxValue < fValue)
 	    {
@@ -349,22 +329,8 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	  }
 	}
 	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
-        pMax[0] = 1.0;
-        pMax[1] = 0.0;
-        pMax[2] = 0.0;
-	pMax[3] = (double) maxValueIndX;
-        pMax[4] = 0.0;
-        pMax[5] = 1.0;
-        pMax[6] = 0.0;
-        pMax[7] = (double) maxValueIndY;
-        pMax[8] = 0.0;
-        pMax[9] = 0.0;
-        pMax[10] = 1.0;
-        pMax[11] = 0.0;
-        pMax[12] = 0.0;
-        pMax[13] = 0.0;
-        pMax[14] = 0.0;
-        pMax[15] = 1.0;
+        pMax[0] = (double) maxValueIndX;
+        pMax[1] = (double) maxValueIndY;
         ofFile.close();
 	  
         std::cout << maxValueIndX << "-" << maxValueIndY << std::endl;
@@ -385,7 +351,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 }
 
 //first two elements are mean. Last four are covariance
-JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava,  jint positiveClusters, jint negativeClusters, jfloatArray current_robot_pose)
+JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest(JNIEnv* env, jobject obj, jstring inputPosJava, jstring inputNegJava,  jint positiveClusters, jint negativeClusters)
 {
     const char *inputPosString = env->GetStringUTFChars(inputPosJava, 0);
     const char *inputNegString = env->GetStringUTFChars(inputNegJava, 0);
@@ -393,181 +359,64 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
     std::string strPosFile = inputPosString;
     std::string strNegFile = inputNegString;
 
-    int positiveClusterNumber = (int) positiveClusters;
-    int negativeClusterNumber = (int) negativeClusters;
+    unsigned int positiveClusterNumber = (unsigned int) positiveClusters;
+    unsigned int negativeClusterNumber = (unsigned int) negativeClusters;
     
     if(fileExists(strPosFile) & fileExists(strNegFile)) {
       std::cout << "Trial Analysis: '" << strPosFile << "' & '" << strNegFile << "'" << std::endl;
       
       mvg::Dataset::Ptr dsDataPos = loadCSV(strPosFile, {0, 1});
-      mvg::KMeans kmMeansPos;
       std::cout << "Positive Dataset: " << dsDataPos->count() << " samples with " << dsDataPos->dimension() << " dimension" << (dsDataPos->dimension() == 1 ? "" : "s") << std::endl;
       mvg::Dataset::Ptr dsDataNeg = loadCSV(strNegFile, {0, 1});
-      mvg::KMeans kmMeansNeg;
       std::cout << "Negative Dataset: " << dsDataNeg->count() << " samples with " << dsDataNeg->dimension() << " dimension" << (dsDataNeg->dimension() == 1 ? "" : "s") << std::endl;
       
       if(dsDataPos && dsDataNeg) {
 
         std::vector<mvg::Dataset::Ptr> vecClustersPos;
         std::vector<mvg::Dataset::Ptr> vecClustersNeg;
-	if (positiveClusterNumber > 1)
-        {
-          kmMeansPos.setSource(dsDataPos);
-	  std::cout << "Calculating positive kMeans clusters .. " << std::flush;
-          kmMeansPos.calculate(1, positiveClusterNumber);
-
-          std::cout << "done" << std::endl;
-	  
-	  vecClustersPos = kmMeansPos.clusters();
-	  std::cout << "Positive optimal cluster count: " << vecClustersPos.size() << std::endl;
-	  
-	  unsigned int unSumSamplesUsed = 0;
-	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
-	    std::cout << " * Cluster #" << unI << ": " << vecClustersPos[unI]->count() << " sample" << (vecClustersPos[unI]->count() == 1 ? "" : "s") << std::endl;
-	    unSumSamplesUsed += vecClustersPos[unI]->count();
-	  }
-	  
-	  unsigned int unRemovedOutliers = dsDataPos->count() - unSumSamplesUsed;
-	  if(unRemovedOutliers > 0) {
-	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from positive dataset" << std::endl;
-	  }
-	}
-
-        if (negativeClusterNumber > 1)
-        {
-          kmMeansNeg.setSource(dsDataNeg);
-	  std::cout << "Calculating negative kMeans clusters .. " << std::flush;
-          kmMeansNeg.calculate(1, negativeClusterNumber);
-
-          std::cout << "done" << std::endl;
-	  
-	  vecClustersNeg = kmMeansNeg.clusters();
-	  std::cout << "Negative optimal cluster count: " << vecClustersNeg.size() << std::endl;
-	  
-	  unsigned int unSumSamplesUsed = 0;
-	  for(unsigned int unI = 0; unI < vecClustersPos.size(); ++unI) {
-	    std::cout << " * Cluster #" << unI << ": " << vecClustersNeg[unI]->count() << " sample" << (vecClustersNeg[unI]->count() == 1 ? "" : "s") << std::endl;
-	    unSumSamplesUsed += vecClustersNeg[unI]->count();
-	  }
-	  
-	  unsigned int unRemovedOutliers = dsDataNeg->count() - unSumSamplesUsed;
-	  if(unRemovedOutliers > 0) {
-	    std::cout << "Removed " << unRemovedOutliers << " outlier" << (unRemovedOutliers == 1 ? "" : "s") << " from negative dataset" << std::endl;
-	  }
-	}
 	
         mvg::MixedGaussians<double> mgGaussiansPos;
         mvg::MixedGaussians<double> mgGaussiansNeg;
 
-	if (positiveClusterNumber > 1)
-        {
-          for(mvg::Dataset::Ptr dsCluster : vecClustersPos) {
-            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-            mvgGaussian->setDataset(dsCluster);
-	    mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
-	  }
-        }
-        else
-        {
-          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-          mvgGaussian->setDataset(dsDataPos);
-	  mgGaussiansPos.addGaussian(mvgGaussian, 1.0);
-        }
-
-        if (negativeClusterNumber > 1)
-        {
-          for(mvg::Dataset::Ptr dsCluster : vecClustersNeg) {
-            mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-            mvgGaussian->setDataset(dsCluster);
-	    mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
-	  }
-        }
-        else
-        {
-          mvg::MultiVarGauss<double>::Ptr mvgGaussian = mvg::MultiVarGauss<double>::create();
-          mvgGaussian->setDataset(dsDataNeg);
-	  mgGaussiansNeg.addGaussian(mvgGaussian, 1.0);
-        }
-	  
-	mvg::MultiVarGauss<double>::Rect rctBBPos = mgGaussiansPos.boundingBox();
-        mvg::MultiVarGauss<double>::DensityFunction fncDensityPos = mgGaussiansPos.densityFunction();
-
-        mvg::MultiVarGauss<double>::Rect rctBBNeg = mgGaussiansNeg.boundingBox();
-        mvg::MultiVarGauss<double>::DensityFunction fncDensityNeg = mgGaussiansNeg.densityFunction();
-
         double min_x, min_y, max_x, max_y;
+        calculateClustersandBoundingBoxes(positiveClusterNumber, negativeClusterNumber,dsDataPos, dsDataNeg, vecClustersPos, vecClustersNeg, mgGaussiansPos, mgGaussiansNeg, min_x, min_y, max_x, max_y);
 
-        /*if(rctBBPos.vecMin[0] > rctBBNeg.vecMin[0]) min_x = rctBBNeg.vecMin[0]; else min_x = rctBBPos.vecMin[0];
-        if(rctBBPos.vecMin[1] > rctBBNeg.vecMin[1]) min_y = rctBBNeg.vecMin[1]; else min_y = rctBBPos.vecMin[1];
-        if(rctBBPos.vecMax[0] > rctBBNeg.vecMax[0]) max_x = rctBBPos.vecMax[0]; else max_x = rctBBNeg.vecMax[0];
-        if(rctBBPos.vecMax[1] > rctBBNeg.vecMax[1]) max_y = rctBBPos.vecMax[1]; else max_y = rctBBNeg.vecMax[1];*/ 
-
-        min_x = rctBBPos.vecMin[0];
-        max_x = rctBBPos.vecMax[0];
-        min_y = rctBBPos.vecMin[1];
-	max_y = rctBBPos.vecMax[1];
- 
-	std::cout << "Clusters bounding box: [" << min_x << ", " << min_y << "] --> [" << max_x << ", " << max_y << "]" << std::endl;
-	  
-	// Two dimensional case
+        // Two dimensional case
 	float fStepSizeX = 0.01;
 	float fStepSizeY = 0.01;
 	  
-	std::cout << "Writing CSV file (step size = [" << fStepSizeX << ", " << fStepSizeY << "]) .. " << std::endl;
 	 
-	jdoubleArray maximized_expectation = env->NewDoubleArray(16);
+	jdoubleArray expectation_gauss = env->NewDoubleArray(6);
 	float maxValue = -1;
 	float maxValueIndX = -1;
 	float maxValueIndY = -1;
-        //float minDistance = 10000.0;
-        jfloat *current_robot_pose_ptr = env->GetFloatArrayElements(current_robot_pose, NULL);
-        float current_x = 0;//current_robot_pose_ptr[3];
-        float current_y = 0;//current_robot_pose_ptr[7];
-	   
+       
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityPos = mgGaussiansPos.densityFunction();
+        mvg::MultiVarGauss<double>::DensityFunction fncDensityNeg = mgGaussiansNeg.densityFunction();
 	for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
             float fValue = 0;
-            /*if(fValuePos == 1) fValue = fValuePos;
-            else if(fValueNeg == 1) fValue = 0;
-            else if(fValueNeg < 0.5) fValue = fValuePos;
-            else if(fValuePos < 0.5) fValue = 1 - fValueNeg;
-            else*/ fValue = (fValuePos + (1- fValueNeg)) / 2;
+            
+            fValue = (fValuePos + (1- fValueNeg)) / 2;
 
             if (fValue < 0) fValue = 0;
             if (fValue > 1) fValue = 1;
             if (fValue != fValue) fValue = 0;
             if(maxValue < fValue)
-	    {
-               maxValue = fValue;
-	       //maxValueIndX = fX;
-               //maxValueIndY = fY;
-               //minDistance = (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY); 
-	    }
-            /*else if (maxValue == fValue)
-            {
-               if(minDistance > (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY))
-               {
-                   minDistance = (current_x - fX) * (current_x - fX) + (current_y - fY) * (current_y - fY);
-                   maxValueIndX = fX;
-                   maxValueIndY = fY;
-               }
-            }*/
+	       maxValue = fValue;
 	  }
 	}
-
+        //get a gaussian for maximized locations
         mvg::Dataset::Ptr dsDataMax = mvg::Dataset::create();
         for(float fX = min_x; fX < max_x; fX += fStepSizeX) {
 	  for(float fY = min_y; fY < max_y; fY += fStepSizeY) {
             float fValuePos = fncDensityPos({fX, fY});
             float fValueNeg = fncDensityNeg({fX, fY});
             float fValue = 0;
-            /*if(fValuePos == 1) fValue = fValuePos;
-            else if(fValueNeg == 1) fValue = 0;
-            else if(fValueNeg < 0.5) fValue = fValuePos;
-            else if(fValuePos < 0.5) fValue = 1 - fValueNeg;
-            else*/ fValue = (fValuePos + (1- fValueNeg)) / 2;
+            
+            fValue = (fValuePos + (1- fValueNeg)) / 2;
 
             if (fValue < 0) fValue = 0;
             if (fValue > 1) fValue = 1;
@@ -587,7 +436,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
         Eigen::VectorXf meanV = mvgGaussianMax->dataMean();
         Eigen::MatrixXf cV = mvgGaussianMax->covariance();
 
-	jdouble *pMax = env->GetDoubleArrayElements(maximized_expectation, NULL);
+	jdouble *pMax = env->GetDoubleArrayElements(expectation_gauss, NULL);
         
         pMax[0] = (double) meanV[0];
         pMax[1] = (double) meanV[1];
@@ -600,8 +449,8 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
 	std::cout << "done" << std::endl;
 	env->ReleaseStringUTFChars(inputPosJava, inputPosString);
         env->ReleaseStringUTFChars(inputNegJava, inputNegString);
-	env->ReleaseDoubleArrayElements(maximized_expectation, pMax, NULL);      
-	return maximized_expectation;
+	env->ReleaseDoubleArrayElements(expectation_gauss, pMax, NULL);      
+	return expectation_gauss;
 	
       }
     } else {

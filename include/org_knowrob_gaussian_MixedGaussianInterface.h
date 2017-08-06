@@ -40,7 +40,7 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
   (JNIEnv *, jobject, jstring, jstring, jstring, jint, jint);
 
 JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_likelyLocationClosest
-  (JNIEnv *, jobject, jstring, jstring, jint, jint, jfloatArray);
+  (JNIEnv *, jobject, jstring, jstring, jint, jint);
 
 #ifdef __cplusplus
 }
