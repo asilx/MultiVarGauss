@@ -365,9 +365,9 @@ JNIEXPORT jdoubleArray JNICALL Java_org_knowrob_gaussian_MixedGaussianInterface_
     if(fileExists(strPosFile) & fileExists(strNegFile)) {
       std::cout << "Trial Analysis: '" << strPosFile << "' & '" << strNegFile << "'" << std::endl;
       
-      mvg::Dataset::Ptr dsDataPos = loadCSV(strPosFile, {0, 1});
+      mvg::Dataset::Ptr dsDataPos = loadCSV(strPosFile, {0, 1, 3});
       std::cout << "Positive Dataset: " << dsDataPos->count() << " samples with " << dsDataPos->dimension() << " dimension" << (dsDataPos->dimension() == 1 ? "" : "s") << std::endl;
-      mvg::Dataset::Ptr dsDataNeg = loadCSV(strNegFile, {0, 1});
+      mvg::Dataset::Ptr dsDataNeg = loadCSV(strNegFile, {0, 1, 3});
       std::cout << "Negative Dataset: " << dsDataNeg->count() << " samples with " << dsDataNeg->dimension() << " dimension" << (dsDataNeg->dimension() == 1 ? "" : "s") << std::endl;
       
       if(dsDataPos && dsDataNeg) {
